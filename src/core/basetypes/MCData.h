@@ -17,7 +17,7 @@ namespace mailcore {
     
     class String;
     
-    class Data : public Object {
+    class MAILCORE_EXPORT Data : public Object {
     public:
         Data();
         Data(int capacity);
@@ -44,6 +44,8 @@ namespace mailcore {
         virtual Data * decodedDataUsingEncoding(Encoding encoding);
         
         virtual String * base64String();
+
+        virtual ErrorCode writeToFile(String * filename);
         
     public: // private
         virtual String * charsetWithFilteredHTML(bool filterHTML, String * hintCharset = NULL);

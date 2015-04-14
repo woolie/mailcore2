@@ -2,6 +2,7 @@
 
 #include "MCAttachment.h"
 
+#include "MCDefines.h"
 #include "MCMultipart.h"
 #include "MCMessagePart.h"
 #include "MCMessageHeader.h"
@@ -576,7 +577,9 @@ Attachment * Attachment::attachmentWithSingleMIME(struct mailmime * mime)
         while (iter != NULL) {
             param = (struct mailmime_parameter *) clist_content(iter);
             if (param != NULL) {
-                result->setContentTypeParameter(String::stringWithUTF8Characters(param->pa_name), String::stringWithUTF8Characters(param->pa_value));
+                if ((strcasecmp("name", param->pa_name) != 0) && (strcasecmp("charset", param->pa_name) != 0)) {
+                    result->setContentTypeParameter(String::stringWithUTF8Characters(param->pa_name), String::stringWithUTF8Characters(param->pa_value));
+                }
             }
             iter = clist_next(iter);
         }
@@ -586,6 +589,9 @@ Attachment * Attachment::attachmentWithSingleMIME(struct mailmime * mime)
         if (single_fields.fld_disposition->dsp_type != NULL) {
             if (single_fields.fld_disposition->dsp_type->dsp_type == MAILMIME_DISPOSITION_TYPE_INLINE) {
                 result->setInlineAttachment(true);
+            }
+            else if (single_fields.fld_disposition->dsp_type->dsp_type == MAILMIME_DISPOSITION_TYPE_ATTACHMENT) {
+                result->setAttachment(true);
             }
         }
     }
@@ -604,4 +610,14 @@ MessagePart * Attachment::attachmentWithMessageMIME(struct mailmime * mime)
     attachment->setMainPart(mainPart);
     
     return (MessagePart *) attachment->autorelease();
+}
+
+static void * createObject()
+{
+    return new Attachment();
+}
+
+INITIALIZE(Attachment)
+{
+    Object::registerObjectConstructor("mailcore::Attachment", &createObject);
 }

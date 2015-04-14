@@ -13,7 +13,7 @@
 #include <unicode/ucnv.h>
 #include <unicode/utypes.h>
 #endif
-#ifndef _MSC_VER
+#if !defined(_MSC_VER) && !defined(ANDROID) && !defined(__ANDROID__)
 #include <uuid/uuid.h>
 #endif
 #include <pthread.h>
@@ -39,6 +39,15 @@
 #include "MCBase64.h"
 #include "MCIterator.h"
 #include "ConvertUTF.h"
+#include "MCLock.h"
+
+#if defined(_MSC_VER)
+#define PATH_SEPARATOR_CHAR '\\'
+#define PATH_SEPARATOR_STRING "\\"
+#else
+#define PATH_SEPARATOR_CHAR '/'
+#define PATH_SEPARATOR_STRING "/"
+#endif
 
 using namespace mailcore;
 
@@ -939,9 +948,7 @@ void String::appendCharactersLength(const UChar * unicodeCharacters, unsigned in
         return;
     }
     allocate(mLength + length);
-    if (mUnicodeChars == NULL) {
-        return;
-    }
+    MCAssert(mUnicodeChars != NULL);
     memcpy(&mUnicodeChars[mLength], unicodeCharacters, length * sizeof(* mUnicodeChars));
     mLength += length;
     mUnicodeChars[mLength] = 0;
@@ -1187,6 +1194,12 @@ Data * String::encodedMIMEHeaderValueForSubject()
 
 int String::compareWithCaseSensitive(String * otherString, bool caseSensitive)
 {
+    if (otherString == NULL) {
+        return 1;
+    }
+    if ((length() == 0) && (otherString->length() == 0)) {
+        return 0;
+    }
     if ((unicodeCharacters() == NULL) && (otherString->unicodeCharacters() != NULL)) {
         return 0;
     }
@@ -1196,7 +1209,7 @@ int String::compareWithCaseSensitive(String * otherString, bool caseSensitive)
     }
     
     if (otherString->unicodeCharacters() == NULL) {
-        return -1;
+        return 1;
     }
     
 #if DISABLE_ICU
@@ -1336,7 +1349,12 @@ void String::appendBytes(const char * bytes, unsigned int length, const char * c
     }
 #else
     UErrorCode err;
-    
+
+    // ICU uses "IMAP-mailbox-name" as charset name.
+    if (strcasecmp(charset, "mutf-7") == 0) {
+        charset = "IMAP-mailbox-name";
+    }
+
     err = U_ZERO_ERROR;
     UConverter * converter = ucnv_open(charset, &err); 
     if (converter == NULL) {
@@ -1384,6 +1402,26 @@ String * String::extractedSubjectAndKeepBracket(bool keepBracket)
     return str;
 }
 
+#if defined(ANDROID) || defined(__ANDROID__)
+
+String * String::uuidString()
+{
+    char buffer[40];
+    FILE * f = fopen("/proc/sys/kernel/random/uuid", "r");
+    if (f == NULL) {
+        return NULL;
+    }
+    if (fgets(buffer, sizeof(buffer), f) == NULL) {
+        fclose(f);
+        return NULL;
+    }
+    buffer[36] = 0;
+    fclose(f);
+    return String::stringWithUTF8Characters(buffer);
+}
+
+#else
+
 #ifndef _MSC_VER
 String * String::uuidString()
 {
@@ -1398,6 +1436,8 @@ String * String::uuidString()
     uuid_unparse_lower(uuid, uuidString);
     return String::stringWithUTF8Characters(uuidString);
 }
+#endif
+
 #endif
 
 unsigned int String::replaceOccurrencesOfString(String * occurrence, String * replacement)
@@ -1486,6 +1526,17 @@ int String::locationOfString(String * occurrence)
         return -1;
     }
     
+    return (int) (location - mUnicodeChars);
+}
+
+int String::lastLocationOfString(String * occurrence)
+{
+    UChar * location;
+    location = u_strrstr(mUnicodeChars, occurrence->unicodeCharacters());
+    if (location == NULL) {
+        return -1;
+    }
+
     return (int) (location - mUnicodeChars);
 }
 
@@ -1625,9 +1676,9 @@ static void returnToLineAtBeginningOfBlock(struct parserState * state)
 static Set * blockElements(void)
 {
     static Set * elements = NULL;
-    pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    MC_LOCK_TYPE lock = MC_LOCK_INITIAL_VALUE;
     
-    pthread_mutex_lock(&lock);
+    MC_LOCK(&lock);
     if (elements == NULL) {
         elements = new Set();
         elements->addObject(MCSTR("address"));
@@ -1658,7 +1709,7 @@ static Set * blockElements(void)
         elements->addObject(MCSTR("tr"));
         elements->addObject(MCSTR("td"));
     }
-    pthread_mutex_unlock(&lock);
+    MC_UNLOCK(&lock);
     
     return elements;
 }
@@ -1909,9 +1960,9 @@ static void commentParsed(void * ctx, const xmlChar * value)
 void initializeLibXML()
 {
     static bool initDone = false;
-    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    static MC_LOCK_TYPE lock = MC_LOCK_INITIAL_VALUE;
     
-    pthread_mutex_lock(&lock);
+    MC_LOCK(&lock);
     if (!initDone) {
         initDone = true;
         xmlInitParser();
@@ -1921,7 +1972,7 @@ void initializeLibXML()
         xmlSetStructuredErrorFunc(xmlGenericErrorContext,
                                   &structuredError);
     }
-    pthread_mutex_unlock(&lock);
+    MC_UNLOCK(&lock);
 }
 
 String * String::flattenHTMLAndShowBlockquoteAndLink(bool showBlockquote, bool showLink)
@@ -2038,7 +2089,7 @@ String * String::lastPathComponent()
     // TODO: Improve Windows compatibility.
     if (mUnicodeChars == NULL)
         return MCSTR("");
-    UChar * component = u_strrchr(mUnicodeChars, '/');
+    UChar * component = u_strrchr(mUnicodeChars, PATH_SEPARATOR_CHAR);
     if (component == NULL)
         return (String *) this->copy()->autorelease();
     return String::stringWithCharacters(component + 1);
@@ -2088,13 +2139,18 @@ Data * String::dataUsingEncoding(const char * charset)
     UErrorCode err;
     Data * data;
     
+    // ICU uses "IMAP-mailbox-name" as charset name.
+    if (strcasecmp(charset, "mutf-7") == 0) {
+        charset = "IMAP-mailbox-name";
+    }
+
     err = U_ZERO_ERROR;
     UConverter * converter = ucnv_open(charset, &err); 
     if (converter == NULL) {
         MCLog("invalid charset %s %i", charset, err);
         return NULL;
     }
-    
+
     err = U_ZERO_ERROR;
     int32_t destLength = ucnv_fromUChars(converter, NULL, 0, mUnicodeChars, mLength, &err);
     int32_t destCapacity = destLength + 1;
@@ -2136,8 +2192,8 @@ String * String::stringByAppendingPathComponent(String * component)
     String * result = (String *) this->copy()->autorelease();
     if (result->length() > 0) {
         UChar lastChar = result->unicodeCharacters()[result->length() - 1];
-        if (lastChar != '/') {
-            result->appendUTF8Characters("/");
+        if (lastChar != PATH_SEPARATOR_CHAR) {
+            result->appendUTF8Characters(PATH_SEPARATOR_STRING);
         }
     }
     result->appendString(component);
@@ -2146,10 +2202,37 @@ String * String::stringByAppendingPathComponent(String * component)
 
 String * String::stringByDeletingLastPathComponent()
 {
-    String * component = lastPathComponent();
-    String * result = (String *) this->copy()->autorelease();
-    result->deleteCharactersInRange(RangeMake(result->length() - component->length(), component->length()));
-    return result;
+    String * currentString = this;
+    if (currentString->isEqual(MCSTR(PATH_SEPARATOR_STRING))) {
+        return currentString;
+    }
+    if (currentString->length() == 0) {
+        return currentString;
+    }
+    if (currentString->unicodeCharacters()[currentString->length() - 1] == PATH_SEPARATOR_CHAR) {
+        currentString = currentString->substringToIndex(currentString->length() - 1);
+    }
+    String * component = currentString->lastPathComponent();
+    currentString = currentString->substringToIndex(currentString->length() - component->length());
+    if (currentString->isEqual(MCSTR(PATH_SEPARATOR_STRING))) {
+        return currentString;
+    }
+    if (currentString->length() == 0) {
+        return currentString;
+    }
+    if (currentString->unicodeCharacters()[currentString->length() - 1] == PATH_SEPARATOR_CHAR) {
+        currentString = currentString->substringToIndex(currentString->length() - 1);
+    }
+    return currentString;
+}
+
+String * String::stringByDeletingPathExtension()
+{
+    int location = lastLocationOfString(MCSTR("."));
+    if ((location == -1) || (location == 0)) {
+        return this;
+    }
+    return substringToIndex(location);
 }
 
 Array * String::componentsSeparatedByString(String * separator)
@@ -2263,7 +2346,7 @@ String * String::substringWithRange(Range range)
 }
 
 static chash * uniquedStringHash = NULL;
-static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static MC_LOCK_TYPE lock = MC_LOCK_INITIAL_VALUE;
 
 static void initUniquedStringHash()
 {
@@ -2280,17 +2363,17 @@ String * String::uniquedStringWithUTF8Characters(const char * UTF8Characters)
     pthread_once(&once, initUniquedStringHash);
     key.data = (void *) UTF8Characters;
     key.len = (unsigned int) strlen(UTF8Characters);
-    pthread_mutex_lock(&lock);
+    MC_LOCK(&lock);
     r = chash_get(uniquedStringHash, &key, &value);
     if (r == 0) {
-        pthread_mutex_unlock(&lock);
+        MC_UNLOCK(&lock);
         return (String *) value.data;
     }
     else {
         value.data = new String(UTF8Characters);
         value.len = 0;
         chash_set(uniquedStringHash, &key, &value, NULL);
-        pthread_mutex_unlock(&lock);
+        MC_UNLOCK(&lock);
         return (String *) value.data;
     }
 }

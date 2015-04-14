@@ -2,7 +2,7 @@
 
 #include "MCData.h"
 
-#define USE_UCHARDET 1
+#define USE_UCHARDET 0
 
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +26,7 @@
 #include "MCHashMap.h"
 #include "MCBase64.h"
 #include "MCSet.h"
+#include "MCLock.h"
 
 #define MCDATA_DEFAULT_CHARSET "iso-8859-1"
 
@@ -205,10 +206,10 @@ String * Data::stringWithCharset(const char * charset)
 
 static bool isHintCharsetValid(String * hintCharset)
 {
-    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    static MC_LOCK_TYPE lock = MC_LOCK_INITIAL_VALUE;
     static Set * knownCharset = NULL;
     
-    pthread_mutex_lock(&lock);
+    MC_LOCK(&lock);
     if (knownCharset == NULL) {
         knownCharset = new Set();
         
@@ -265,7 +266,7 @@ static bool isHintCharsetValid(String * hintCharset)
         }
 #endif
     }
-    pthread_mutex_unlock(&lock);
+    MC_UNLOCK(&lock);
     
     if (hintCharset != NULL) {
         hintCharset = normalizeCharset(hintCharset);
@@ -283,6 +284,8 @@ static bool isHintCharsetValid(String * hintCharset)
             return true;
         }
         
+        // If it's among the known charset, we want to try to detect it
+        // to validate that it's the correct charset.
         if (!knownCharset->containsObject(hintCharset)) {
             return true;
         }
@@ -459,24 +462,24 @@ String * Data::charsetWithFilteredHTML(bool filterHTML, String * hintCharset)
     
     return result;
 #else
-    String * result;
-    uchardet_t ud = uchardet_new();
-    int r = uchardet_handle_data(ud, bytes(), length());
-    if (r == 0) {
-        uchardet_data_end(ud);
-        const char * charset = uchardet_get_charset(ud);
-        if (charset[0] == 0) {
-            result = hintCharset;
-        }
-        else {
-            result = String::stringWithUTF8Characters(charset);
+    if (hintCharset->caseInsensitiveCompare(MCSTR("utf-8")) == 0) {
+        // Checks if the string converts well.
+        String * value = stringWithCharset("utf-8");
+        if (value != NULL) {
+            return hintCharset;
         }
     }
-    else {
+
+    String * result = charsetWithFilteredHTMLWithoutHint(filterHTML);
+    if (result == NULL) {
         result = hintCharset;
     }
-    uchardet_delete(ud);
     
+    if (result->lowercaseString()->isEqual(MCSTR("x-mac-cyrillic")) &&
+        hintCharset->lowercaseString()->isEqual(MCSTR("windows-1251"))) {
+        result = MCSTR("windows-1251");
+    }
+
     return result;
 #endif
 }
@@ -715,6 +718,20 @@ void Data::importSerializable(HashMap * serializable)
     setData(((String *) (serializable->objectForKey(MCSTR("data"))))->decodedBase64Data());
 }
 
+ErrorCode Data::writeToFile(String * filename)
+{
+    FILE * f = fopen(filename->fileSystemRepresentation(), "wb");
+    if (f == NULL) {
+        return ErrorFile;
+    }
+    size_t result = fwrite(bytes(), length(), 1, f);
+    if (result == 0) {
+        return ErrorFile;
+    }
+    fclose(f);
+    return ErrorNone;
+}
+
 #if __APPLE__
 static CFStringEncoding encodingFromCString(const char * charset)
 {
@@ -809,7 +826,7 @@ static int lepIConv(const char * tocode, const char * fromcode,
         goto err;
     }
 
-    out_size = length * 6;
+    out_size = * result_len;
     old_out_size = out_size;
     p_result = result;
 
@@ -861,6 +878,9 @@ static int lepCFConv(const char * tocode, const char * fromcode,
 
     unsigned int len;
     len = (unsigned int) CFDataGetLength(resultData);
+    if (len > * result_len) {
+        len = (unsigned int) * result_len;
+    }
     CFDataGetBytes(resultData, CFRangeMake(0, len), (UInt8 *) result);
     * result_len = len;
     result[len] = 0;
@@ -894,6 +914,34 @@ static int lepMixedConv(const char * tocode, const char * fromcode,
 }
 #endif
 
+#if defined(__ANDROID__) || defined(ANDROID)
+
+static int lepMixedConv(const char * tocode, const char * fromcode,
+                        const char * str, size_t length,
+                        char * result, size_t * result_len)
+{
+    Data * data = Data::dataWithBytes(str, length);
+    String * ustr = data->stringWithCharset(fromcode);
+    if (ustr == NULL) {
+        return MAIL_CHARCONV_ERROR_CONV;
+    }
+    data = ustr->dataUsingEncoding(tocode);
+    if (data == NULL) {
+        return MAIL_CHARCONV_ERROR_CONV;
+    }
+    size_t len = data->length();
+    if (len > * result_len) {
+        len = * result_len;
+    }
+    memcpy(result, data->bytes(), len);
+    result[len] = 0;
+    * result_len = len;
+
+    return MAIL_CHARCONV_NO_ERROR;
+}
+
+#endif
+
 static void * createObject()
 {
     return new Data();
@@ -902,7 +950,7 @@ static void * createObject()
 INITIALIZE(Data)
 {
     Object::registerObjectConstructor("mailcore::Data", &createObject);
-#if __APPLE__
+#if __APPLE__ || defined(__ANDROID__) || defined(ANDROID)
     extended_charconv = lepMixedConv;
 #endif
 }

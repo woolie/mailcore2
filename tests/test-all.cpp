@@ -12,20 +12,42 @@
 #if __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
 #endif
-#if __linux__
+#if __linux__ && !defined(ANDROID) && !defined(__ANDROID__)
 #include <glib.h>
 #endif
-
-extern "C" {
-    extern int mailstream_debug;
-}
+#ifdef _MSC_VER
+#include <Windows.h>
+#endif
 
 static mailcore::String * password = NULL;
 static mailcore::String * displayName = NULL;
 static mailcore::String * email = NULL;
-#if __linux
+#if __linux__ && !defined(ANDROID) && !defined(__ANDROID__)
 static GMainLoop * s_main_loop = NULL;
 #endif
+
+#ifdef _MSC_VER
+static void win32MainLoop(void)
+{
+	MSG msg;
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+}
+#endif
+
+static void mainLoop(void)
+{
+#if __APPLE__
+	CFRunLoopRun();
+#elif __linux__ && !defined(ANDROID) && !defined(__ANDROID__)
+	g_main_loop_run(s_main_loop);
+#elif defined(_MSC_VER)
+	win32MainLoop();
+#endif
+}
 
 class TestOperation : public mailcore::Operation {
     void main()
@@ -188,12 +210,8 @@ static void testOperationQueue()
         op->release();
     }
     
-#if __APPLE__
-    CFRunLoopRun();
-#elif __linux__
-    g_main_loop_run(s_main_loop);
-#endif
-    
+	mainLoop();
+
     queue->release();
 }
 
@@ -227,12 +245,8 @@ static void testAsyncSMTP(mailcore::Data * data)
     op->setCallback(callback);
     op->start();
     
-#if __APPLE__
-    CFRunLoopRun();
-#elif __linux__
-    g_main_loop_run(s_main_loop);
-#endif
-    
+	mainLoop();
+
     //smtp->release();
 }
 
@@ -276,12 +290,8 @@ static void testAsyncIMAP()
     op->setImapCallback(callback);
     op->start();
     //MCLog("%s", MCUTF8DESC(messages));
-#if __APPLE__
-    CFRunLoopRun();
-#elif __linux__
-    g_main_loop_run(s_main_loop);
-#endif
-    
+	mainLoop();
+
     //session->release();
 }
 
@@ -318,11 +328,7 @@ static void testAsyncPOP()
     //mailcore::Array * messages = session->fetchMessages(&error);
     //MCLog("%s", MCUTF8DESC(messages));
     
-#if __APPLE__
-    CFRunLoopRun();
-#elif __linux__
-    g_main_loop_run(s_main_loop);
-#endif
+	mainLoop();
 }
 
 static void testAddresses()
@@ -354,13 +360,12 @@ void testAll()
     password = MCSTR("MyP4ssw0rd");
     displayName = MCSTR("My Email");
     
-#if __linux__
+#if __linux__ && !defined(ANDROID) && !defined(__ANDROID__)
     s_main_loop = g_main_loop_new (NULL, FALSE);
 #endif
     
     mailcore::AutoreleasePool * pool = new mailcore::AutoreleasePool();
     MCLogEnabled = 1;
-    mailstream_debug = 1;
     
     //mailcore::Data * data = testMessageBuilder();
     //testMessageParser(data);
@@ -373,6 +378,6 @@ void testAll()
     //testAsyncPOP();
     //testAddresses();
     //testAttachments();
-  
+
     pool->release();
 }

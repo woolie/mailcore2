@@ -19,6 +19,10 @@
 #include <openssl/err.h>
 #endif
 
+#if defined(ANDROID) || defined(__ANDROID__)
+#include <dirent.h>
+#endif
+
 #include "MCLog.h"
 
 bool mailcore::checkCertificate(mailstream * stream, String * hostname)
@@ -97,6 +101,11 @@ err:
     X509_STORE * store = NULL;
     X509_STORE_CTX * storectx = NULL;
     STACK_OF(X509) * certificates = NULL;
+#if defined(ANDROID) || defined(__ANDROID__)
+    DIR * dir = NULL;
+    struct dirent * ent = NULL;
+    FILE * f = NULL;
+#endif
     int status;
     
     carray * cCerts = mailstream_get_certificate_chain(stream);
@@ -110,7 +119,45 @@ err:
         goto free_certs;
     }
     
-    status = X509_STORE_set_default_paths(store);
+#ifdef _MSC_VER
+	HCERTSTORE systemStore = CertOpenSystemStore(NULL, L"ROOT");
+
+	PCCERT_CONTEXT previousCert = NULL;
+	while (1) {
+		PCCERT_CONTEXT nextCert = CertEnumCertificatesInStore(systemStore, previousCert);
+		if (nextCert == NULL) {
+			break;
+		}
+		X509 * openSSLCert = d2i_X509(NULL, (const unsigned char **)&nextCert->pbCertEncoded, nextCert->cbCertEncoded);
+		if (openSSLCert != NULL) {
+			X509_STORE_add_cert(store, openSSLCert);
+			X509_free(openSSLCert);
+		}
+		previousCert = nextCert;
+	}
+	CertCloseStore(systemStore, 0);
+#elif defined(ANDROID) || defined(__ANDROID__)
+    dir = opendir("/system/etc/security/cacerts");
+    while (ent = readdir(dir)) {
+        if (ent->d_name[0] == '.') {
+            continue;
+        }
+        char filename[1024];
+        snprintf(filename, sizeof(filename), "/system/etc/security/cacerts/%s", ent->d_name);
+        f = fopen(filename, "rb");
+        if (f != NULL) {
+            X509 * cert = PEM_read_X509(f, NULL, NULL, NULL);
+            if (cert != NULL) {
+                X509_STORE_add_cert(store, cert);
+                X509_free(cert);
+            }
+            fclose(f);
+        }
+    }
+    closedir(dir);
+#endif
+
+	status = X509_STORE_set_default_paths(store);
     if (status != 1) {
         printf("Error loading the system-wide CA certificates");
     }

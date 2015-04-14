@@ -6,6 +6,7 @@
 #include "MCAddress.h"
 #include "MCIterator.h"
 #include "MCLibetpan.h"
+#include "MCLock.h"
 
 #include <string.h>
 #ifndef _MSC_VER
@@ -76,9 +77,9 @@ void MessageHeader::init(bool generateDate, bool generateMessageID)
     }
     if (generateMessageID) {
         static String * hostname = NULL;
-        static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+        static MC_LOCK_TYPE lock = MC_LOCK_INITIAL_VALUE;
         
-        pthread_mutex_lock(&lock);
+        MC_LOCK(&lock);
         if (hostname == NULL) {
             char name[MAX_HOSTNAME];
             int r;
@@ -94,7 +95,7 @@ void MessageHeader::init(bool generateDate, bool generateMessageID)
                 hostname = new String("localhost");
             }
         }
-        pthread_mutex_unlock(&lock);
+        MC_UNLOCK(&lock);
         
         String * messageID = new String();
         messageID->appendString(String::uuidString());
@@ -984,6 +985,7 @@ Array * MessageHeader::recipientWithReplyAll(bool replyAll, bool includeTo, bool
     Array * toField;
     Array * ccField;
     bool containsSender;
+    Array * senderEmailsMailboxes;
     
     toField = NULL;
     ccField = NULL;
@@ -991,19 +993,23 @@ Array * MessageHeader::recipientWithReplyAll(bool replyAll, bool includeTo, bool
     hasTo = false;
     hasCc = false;
     addedAddresses = new Set();
-    
+    senderEmailsMailboxes = Array::array();
+
     containsSender = false;
     if (senderEmails != NULL) {
-      if (from() != NULL) {
-        if (senderEmails->containsObject(from()->mailbox()->lowercaseString())) {
-          containsSender = true;
+        mc_foreacharray(Address, address, senderEmails) {
+            senderEmailsMailboxes->addObject(address->mailbox()->lowercaseString());
         }
-      }
-      if (sender() != NULL) {
-        if (senderEmails->containsObject(sender()->mailbox()->lowercaseString())) {
-          containsSender = true;
+        if (from() != NULL) {
+            if (senderEmailsMailboxes->containsObject(from()->mailbox()->lowercaseString())) {
+                containsSender = true;
+            }
         }
-      }
+        if (sender() != NULL) {
+            if (senderEmailsMailboxes->containsObject(sender()->mailbox()->lowercaseString())) {
+                containsSender = true;
+            }
+        }
     }
     
     if (containsSender) {
@@ -1065,7 +1071,7 @@ Array * MessageHeader::recipientWithReplyAll(bool replyAll, bool includeTo, bool
         }
     }
     else {
-        addedAddresses->addObjectsFromArray(senderEmails);
+        addedAddresses->addObjectsFromArray(senderEmailsMailboxes);
         
         if (replyTo() != NULL && replyTo()->count() > 0) {
             hasTo = true;
@@ -1151,7 +1157,12 @@ MessageHeader * MessageHeader::replyHeader(bool replyAll, Array * addressesExclu
         subjectValue = MCSTR("Re: ");
     }
     else {
-        subjectValue = MCSTR("Re: ")->stringByAppendingString(subject());
+        if (!subject()->lowercaseString()->hasPrefix(MCSTR("re:"))) {
+            subjectValue = MCSTR("Re: ")->stringByAppendingString(subject());
+        }
+        else {
+            subjectValue = (String *) subject()->copy()->autorelease();
+        }
     }
     if (references() != NULL) {
         referencesValue = (Array *) (references()->copy());

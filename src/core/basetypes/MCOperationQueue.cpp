@@ -10,6 +10,8 @@
 #include "MCArray.h"
 #include "MCLog.h"
 #include "MCAutoreleasePool.h"
+#include "MCMainThreadAndroid.h"
+#include "MCAssert.h"
 
 using namespace mailcore;
 
@@ -72,6 +74,10 @@ void OperationQueue::runOperationsOnThread(OperationQueue * queue)
 
 void OperationQueue::runOperations()
 {
+#if defined(__ANDROID) || defined(ANDROID)
+    androidSetupThread();
+#endif
+
     MCLog("start thread");
     mailsem_up(mStartSem);
     
@@ -107,6 +113,7 @@ void OperationQueue::runOperations()
             break;
         }
 
+        MCAssert(op != NULL);
         performOnCallbackThread(op, (Object::Method) &OperationQueue::beforeMain, op, true);
 
         if (op != NULL) {
@@ -144,6 +151,9 @@ void OperationQueue::runOperations()
         pool->release();
     }
     MCLog("cleanup thread %p", this);
+#if defined(__ANDROID) || defined(ANDROID)
+    androidUnsetupThread();
+#endif
 }
 
 void OperationQueue::performOnCallbackThread(Operation * op, Method method, void * context, bool waitUntilDone)
