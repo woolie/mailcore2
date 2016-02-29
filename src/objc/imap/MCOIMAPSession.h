@@ -20,6 +20,7 @@
 @class MCOIMAPFolderStatusOperation;
 @class MCOIMAPAppendMessageOperation;
 @class MCOIMAPCopyMessagesOperation;
+@class MCOIMAPMoveMessagesOperation;
 @class MCOIndexSet;
 @class MCOIMAPFetchMessagesOperation;
 @class MCOIMAPFetchContentOperation;
@@ -34,6 +35,7 @@
 @class MCOIMAPMessageRenderingOperation;
 @class MCOIMAPMessage;
 @class MCOIMAPIdentity;
+@class MCOIMAPCustomCommandOperation;
 
 /**
  This is the main IMAP class from which all operations are created
@@ -85,7 +87,7 @@
 @property (nonatomic, strong) MCOIMAPNamespace * defaultNamespace;
 
 /** The identity of the IMAP client. */
-@property (nonatomic, strong, readonly) MCOIMAPIdentity * clientIdentity;
+@property (nonatomic, copy) MCOIMAPIdentity * clientIdentity;
 
 /** The identity of the IMAP server. */
 @property (nonatomic, strong, readonly) MCOIMAPIdentity * serverIdentity;
@@ -303,6 +305,24 @@
                                                         customFlags:(NSArray *)customFlags;
 
 /**
+ Returns an operation to add a message with custom flags to a folder.
+
+     MCOIMAPOperation * op = [session appendMessageOperationWithFolder:@"Sent Mail"
+                                                        contentsAtPath:rfc822DataFilename
+                                                                 flags:MCOMessageFlagNone
+                                                           customFlags:@[@"$CNS-Greeting-On"]];
+     [op start:^(NSError * __nullable error, uint32_t createdUID) {
+       if (error == nil) {
+         NSLog(@"created message with UID %lu", (unsigned long) createdUID);
+       }
+     }];
+ */
+- (MCOIMAPAppendMessageOperation *)appendMessageOperationWithFolder:(NSString *)folder
+                                                     contentsAtPath:(NSString *)path
+                                                              flags:(MCOMessageFlag)flags
+                                                        customFlags:(NSArray *)customFlags;
+
+/**
  Returns an operation to copy messages to a folder.
 
      MCOIMAPCopyMessagesOperation * op = [session copyMessagesOperationWithFolder:@"INBOX"
@@ -313,6 +333,20 @@
      }];
 */
 - (MCOIMAPCopyMessagesOperation *)copyMessagesOperationWithFolder:(NSString *)folder
+                                                             uids:(MCOIndexSet *)uids
+                                                       destFolder:(NSString *)destFolder NS_RETURNS_NOT_RETAINED;
+
+/**
+ Returns an operation to move messages to a folder.
+
+     MCOIMAPMoveMessagesOperation * op = [session moveMessagesOperationWithFolder:@"INBOX"
+                                                                             uids:[MCIndexSet indexSetWithIndex:456]
+                                                                       destFolder:@"Cocoa"];
+     [op start:^(NSError * __nullable error, NSDictionary * uidMapping) {
+          NSLog(@"moved to folder with UID mapping %@", uidMapping);
+     }];
+*/
+- (MCOIMAPMoveMessagesOperation *)moveMessagesOperationWithFolder:(NSString *)folder
                                                              uids:(MCOIndexSet *)uids
                                                        destFolder:(NSString *)destFolder NS_RETURNS_NOT_RETAINED;
 
@@ -679,6 +713,18 @@ vanishedMessages will be set only for servers that support QRESYNC. See [RFC5162
                                                                            partID:(NSString *)partID
                                                                          encoding:(MCOEncoding)encoding
                                                                            urgent:(BOOL)urgent DEPRECATED_ATTRIBUTE;
+
+/**
+ Returns an operation for custom command.
+ @param command is the text representation of the command to be send.
+ 
+ 
+ MCOIMAPCustomCommandOperation * op = [session customCommandOperation:@"ACTIVATE SERVICE"];
+ [op start: ^(NSString * __nullable response, NSError * __nullable error) {
+   ...
+ }];
+ */
+- (MCOIMAPCustomCommandOperation *) customCommandOperation:(NSString *)command;
 
 /**
   Returns an operation to fetch an attachment.

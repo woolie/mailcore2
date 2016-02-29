@@ -21,6 +21,7 @@ namespace mailcore {
     class IMAPFetchFoldersOperation;
     class IMAPAppendMessageOperation;
     class IMAPCopyMessagesOperation;
+    class IMAPMoveMessagesOperation;
     class IMAPFetchMessagesOperation;
     class IMAPFetchContentOperation;
     class IMAPFetchParsedContentOperation;
@@ -40,6 +41,7 @@ namespace mailcore {
     class IMAPSession;
     class IMAPIdentity;
     class OperationQueueCallback;
+    class IMAPCustomCommandOperation;
     
     class MAILCORE_EXPORT IMAPAsyncSession : public Object {
     public:
@@ -102,6 +104,8 @@ namespace mailcore {
         
         virtual IMAPIdentity * serverIdentity();
         virtual IMAPIdentity * clientIdentity();
+        virtual void setClientIdentity(IMAPIdentity * clientIdentity);
+
         virtual String * gmailUserDisplayName() DEPRECATED_ATTRIBUTE;
         
         virtual IMAPFolderInfoOperation * folderInfoOperation(String * folder);
@@ -118,8 +122,10 @@ namespace mailcore {
         virtual IMAPOperation * unsubscribeFolderOperation(String * folder);
         
         virtual IMAPAppendMessageOperation * appendMessageOperation(String * folder, Data * messageData, MessageFlag flags, Array * customFlags = NULL);
-        
+        virtual IMAPAppendMessageOperation * appendMessageOperation(String * folder, String * messagePath, MessageFlag flags, Array * customFlags = NULL);
+
         virtual IMAPCopyMessagesOperation * copyMessagesOperation(String * folder, IndexSet * uids, String * destFolder);
+        virtual IMAPMoveMessagesOperation * moveMessagesOperation(String * folder, IndexSet * uids, String * destFolder);
         
         virtual IMAPOperation * expungeOperation(String * folder);
         
@@ -135,6 +141,7 @@ namespace mailcore {
                                                                                  Encoding encoding, bool urgent = false);
         
         virtual IMAPFetchContentOperation * fetchMessageByNumberOperation(String * folder, uint32_t number, bool urgent = false);
+        virtual IMAPCustomCommandOperation * customCommand(String *command, bool urgent);
         virtual IMAPFetchContentOperation * fetchMessageAttachmentByNumberOperation(String * folder, uint32_t number, String * partID,
                                                                                     Encoding encoding, bool urgent = false);
         

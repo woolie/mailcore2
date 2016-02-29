@@ -6,8 +6,6 @@
 //  Copyright (c) 2014 MailCore. All rights reserved.
 //
 
-#import <Foundation/Foundation.h>
-
 #ifndef MAILCORE_MCONNTPSESSION_H
 
 #define MAILCORE_MCONNTPSESSION_H
@@ -22,11 +20,13 @@
 @class MCONNTPListNewsgroupsOperation;
 @class MCONNTPFetchOverviewOperation;
 @class MCONNTPFetchServerTimeOperation;
+@class MCONNTPPostOperation;
 @class MCONNTPOperation;
 @class MCOIndexSet;
 
 /** This class implements asynchronous access to the NNTP protocol.*/
 
+NS_ASSUME_NONNULL_BEGIN
 @interface MCONNTPSession : NSObject
 
 /** This is the hostname of the NNTP server to connect to.*/
@@ -138,12 +138,22 @@
 /**
  Returns an operation that will fetch the content of a message with the given messageID.
  
+ MCONNTPFetchArticleOperation * op = [session fetchArticleOperationWithMessageID:@"<MessageID123@mail.google.com>"];
+ [op start:^(NSError * __nullable error, NSData * messageData) {
+ // messageData is the RFC 822 formatted message data.
+ }];
+ */
+- (MCONNTPFetchArticleOperation *) fetchArticleOperationWithMessageID:(NSString *)messageID;
+
+/**
+ Obsolete. Use -fetchArticleOperationWithMessageID: instead.
+ 
  MCONNTPFetchArticleOperation * op = [session fetchArticleOperationWithMessageID:@"<MessageID123@mail.google.com>" inGroup:@"comp.lang.c"];
  [op start:^(NSError * __nullable error, NSData * messageData) {
  // messageData is the RFC 822 formatted message data.
  }];
  */
-- (MCONNTPFetchArticleOperation *) fetchArticleOperationWithMessageID:(NSString *)messageID inGroup:(NSString *)group;
+- (MCONNTPFetchArticleOperation *) fetchArticleOperationWithMessageID:(NSString *)messageID inGroup:(NSString * __nullable)group DEPRECATED_ATTRIBUTE;
 
 /**
  Returns an operation that will fetch the server's date and time.
@@ -173,6 +183,32 @@
 - (MCONNTPListNewsgroupsOperation *) listDefaultNewsgroupsOperation;
 
 /**
+ Returns an operation that will post the given message through NNTP.
+ It will use the newsgroups set in the message data.
+ It will also filter out Bcc from the content of the message.
+ 
+ Generate RFC 822 data using MCOMessageBuilder
+ 
+      MCONNTPOperation * op = [session postOperationWithData:rfc822Data];
+      [op start:^(NSError * __nullable error) {
+           ...
+      }];
+ */
+- (MCONNTPPostOperation *) postOperationWithData:(NSData *)messageData;
+
+/**
+ Returns an operation that will post the message from the given file through NNTP.
+ It will use the newsgroups set in the message data.
+ It will also filter out Bcc from the content of the message.
+ 
+      MCONNTPOperation * op = [session postOperationWithContentsOfFile:rfc822DataFilename];
+      [op start:^(NSError * __nullable error) {
+           ...
+      }];
+ */
+- (MCONNTPPostOperation *) postOperationWithContentsOfFile:(NSString *)path;
+
+/**
  Returns an operation that will disconnect the session.
  
  MCONNTPOperation * op = [session disconnectOperation];
@@ -193,5 +229,6 @@
 - (MCONNTPOperation *) checkAccountOperation;
 
 @end
+NS_ASSUME_NONNULL_END
 
 #endif

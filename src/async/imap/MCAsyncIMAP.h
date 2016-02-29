@@ -15,6 +15,7 @@
 #include <MailCore/MCIMAPFetchFoldersOperation.h>
 #include <MailCore/MCIMAPAppendMessageOperation.h>
 #include <MailCore/MCIMAPCopyMessagesOperation.h>
+#include <MailCore/MCIMAPMoveMessagesOperation.h>
 #include <MailCore/MCIMAPFetchMessagesOperation.h>
 #include <MailCore/MCIMAPFetchContentOperation.h>
 #include <MailCore/MCIMAPFetchParsedContentOperation.h>
@@ -33,5 +34,6 @@
 #include <MailCore/MCIMAPQuotaOperation.h>
 #include <MailCore/MCIMAPOperationCallback.h>
 #include <MailCore/MCIMAPMessageRenderingOperation.h>
+#include <MailCore/MCIMAPCustomCommandOperation.h>
 
 #endif

@@ -7,6 +7,7 @@ build_git_ios()
   fi
 
   simarchs="i386 x86_64"
+  sdkminversion="7.0"
   sdkversion="`xcodebuild -showsdks 2>/dev/null | grep iphoneos | sed 's/.*iphoneos\(.*\)/\1/'`"
   devicearchs="armv7 armv7s arm64"
 
@@ -64,17 +65,24 @@ build_git_ios()
   git checkout -q $rev
   echo building $name $version - $rev
 
+  BITCODE_FLAGS="-fembed-bitcode"
+  if test "x$NOBITCODE" != x ; then
+     BITCODE_FLAGS=""
+     XCODE_BITCODE_FLAGS="ENABLE_BITCODE=NO"
+  fi
+  XCTOOL_OTHERFLAGS='$(inherited)'
+  XCTOOL_OTHERFLAGS="$XCTOOL_OTHERFLAGS $BITCODE_FLAGS"
   cd "$srcdir/$name/build-mac"
   sdk="iphoneos$sdkversion"
   echo building $sdk
-  xctool -project "$xcode_project" -sdk $sdk -scheme "$xcode_target" -configuration Release SYMROOT="$tmpdir/bin" OBJROOT="$tmpdir/obj" ARCHS="$devicearchs" IPHONEOS_DEPLOYMENT_TARGET="$sdkversion" OTHER_CFLAGS='$(inherited) -fembed-bitcode'
+  xctool -project "$xcode_project" -sdk $sdk -scheme "$xcode_target" -configuration Release SYMROOT="$tmpdir/bin" OBJROOT="$tmpdir/obj" ARCHS="$devicearchs" IPHONEOS_DEPLOYMENT_TARGET="$sdkminversion" OTHER_CFLAGS="$XCTOOL_OTHERFLAGS" $XCODE_BITCODE_FLAGS
   if test x$? != x0 ; then
     echo failed
     exit 1
   fi
   sdk="iphonesimulator$sdkversion"
   echo building $sdk
-  xctool -project "$xcode_project" -sdk $sdk -scheme "$xcode_target" -configuration Release SYMROOT="$tmpdir/bin" OBJROOT="$tmpdir/obj" ARCHS="$simarchs" IPHONEOS_DEPLOYMENT_TARGET="$sdkversion" OTHER_CFLAGS='$(inherited) -fembed-bitcode'
+  xctool -project "$xcode_project" -sdk $sdk -scheme "$xcode_target" -configuration Release SYMROOT="$tmpdir/bin" OBJROOT="$tmpdir/obj" ARCHS="$simarchs" IPHONEOS_DEPLOYMENT_TARGET="$sdkminversion" OTHER_CFLAGS='$(inherited)'
   if test x$? != x0 ; then
     echo failed
     exit 1
@@ -149,6 +157,7 @@ build_git_osx()
 {
   sdk="`xcodebuild -showsdks 2>/dev/null | grep macosx | sed 's/.*macosx\(.*\)/\1/'`"
   archs="x86_64"
+  sdkminversion="10.7"
   
   if test "x$name" = x ; then
     return
@@ -209,7 +218,7 @@ build_git_osx()
   echo building $name $version - $rev
 
   cd "$srcdir/$name/build-mac"
-  xctool -project "$xcode_project" -sdk macosx$sdk -scheme "$xcode_target" -configuration Release ARCHS="$archs" SYMROOT="$tmpdir/bin" OBJROOT="$tmpdir/obj"
+  xctool -project "$xcode_project" -sdk macosx$sdk -scheme "$xcode_target" -configuration Release ARCHS="$archs" SYMROOT="$tmpdir/bin" OBJROOT="$tmpdir/obj" MACOSX_DEPLOYMENT_TARGET="$sdkminversion"
   if test x$? != x0 ; then
     echo failed
     exit 1

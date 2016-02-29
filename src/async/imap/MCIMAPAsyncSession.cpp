@@ -26,6 +26,7 @@
 #include "MCIMAPExpungeOperation.h"
 #include "MCIMAPAppendMessageOperation.h"
 #include "MCIMAPCopyMessagesOperation.h"
+#include "MCIMAPMoveMessagesOperation.h"
 #include "MCIMAPFetchMessagesOperation.h"
 #include "MCIMAPFetchContentOperation.h"
 #include "MCIMAPFetchParsedContentOperation.h"
@@ -42,6 +43,7 @@
 #include "MCIMAPDisconnectOperation.h"
 #include "MCIMAPNoopOperation.h"
 #include "MCIMAPMessageRenderingOperation.h"
+#include "MCIMAPCustomCommandOperation.h"
 
 #define DEFAULT_MAX_CONNECTIONS 3
 
@@ -232,6 +234,11 @@ IMAPIdentity * IMAPAsyncSession::serverIdentity()
 IMAPIdentity * IMAPAsyncSession::clientIdentity()
 {
     return mClientIdentity;
+}
+
+void IMAPAsyncSession::setClientIdentity(IMAPIdentity * clientIdentity)
+{
+    MC_SAFE_REPLACE_COPY(IMAPIdentity, mClientIdentity, clientIdentity);
 }
 
 String * IMAPAsyncSession::gmailUserDisplayName()
@@ -441,9 +448,32 @@ IMAPAppendMessageOperation * IMAPAsyncSession::appendMessageOperation(String * f
     return op;
 }
 
+IMAPAppendMessageOperation * IMAPAsyncSession::appendMessageOperation(String * folder, String * messagePath, MessageFlag flags, Array * customFlags)
+{
+    IMAPAppendMessageOperation * op = new IMAPAppendMessageOperation();
+    op->setMainSession(this);
+    op->setFolder(folder);
+    op->setMessageFilepath(messagePath);
+    op->setFlags(flags);
+    op->setCustomFlags(customFlags);
+    op->autorelease();
+    return op;
+}
+
 IMAPCopyMessagesOperation * IMAPAsyncSession::copyMessagesOperation(String * folder, IndexSet * uids, String * destFolder)
 {
     IMAPCopyMessagesOperation * op = new IMAPCopyMessagesOperation();
+    op->setMainSession(this);
+    op->setFolder(folder);
+    op->setUids(uids);
+    op->setDestFolder(destFolder);
+    op->autorelease();
+    return op;
+}
+
+IMAPMoveMessagesOperation * IMAPAsyncSession::moveMessagesOperation(String * folder, IndexSet * uids, String * destFolder)
+{
+    IMAPMoveMessagesOperation * op = new IMAPMoveMessagesOperation();
     op->setMainSession(this);
     op->setFolder(folder);
     op->setUids(uids);
@@ -531,6 +561,17 @@ IMAPFetchContentOperation * IMAPAsyncSession::fetchMessageByNumberOperation(Stri
     op->setMainSession(this);
     op->setFolder(folder);
     op->setNumber(number);
+    op->setUrgent(urgent);
+    op->autorelease();
+    return op;
+}
+
+IMAPCustomCommandOperation * IMAPAsyncSession::customCommand(String *command, bool urgent)
+{
+
+    IMAPCustomCommandOperation *op = new IMAPCustomCommandOperation();
+    op->setMainSession(this);
+    op->setCustomCommand(command);
     op->setUrgent(urgent);
     op->autorelease();
     return op;

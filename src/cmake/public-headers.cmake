@@ -86,6 +86,7 @@ async/imap/MCIMAPOperation.h
 async/imap/MCIMAPFetchFoldersOperation.h
 async/imap/MCIMAPAppendMessageOperation.h
 async/imap/MCIMAPCopyMessagesOperation.h
+async/imap/MCIMAPMoveMessagesOperation.h
 async/imap/MCIMAPFetchMessagesOperation.h
 async/imap/MCIMAPFetchContentOperation.h
 async/imap/MCIMAPFetchParsedContentOperation.h
@@ -100,6 +101,7 @@ async/imap/MCIMAPCapabilityOperation.h
 async/imap/MCIMAPQuotaOperation.h
 async/imap/MCIMAPOperationCallback.h
 async/imap/MCIMAPMessageRenderingOperation.h
+async/imap/MCIMAPCustomCommandOperation.h
 async/pop/MCAsyncPOP.h
 async/pop/MCPOPAsyncSession.h
 async/pop/MCPOPOperation.h
@@ -116,6 +118,7 @@ async/nntp/MCNNTPFetchAllArticlesOperation.h
 async/nntp/MCNNTPListNewsgroupsOperation.h
 async/nntp/MCNNTPFetchOverviewOperation.h
 async/nntp/MCNNTPFetchServerTimeOperation.h
+async/nntp/MCNNTPPostOperation.h
 async/nntp/MCNNTPOperationCallback.h
 objc/MCObjC.h
 objc/utils/MCOUtils.h
@@ -160,6 +163,7 @@ objc/imap/MCOIMAPFolderStatusOperation.h
 objc/imap/MCOIMAPFolderStatus.h
 objc/imap/MCOIMAPAppendMessageOperation.h
 objc/imap/MCOIMAPCopyMessagesOperation.h
+objc/imap/MCOIMAPMoveMessagesOperation.h
 objc/imap/MCOIMAPFetchMessagesOperation.h
 objc/imap/MCOIMAPFetchContentOperation.h
 objc/imap/MCOIMAPFetchParsedContentOperation.h
@@ -171,6 +175,7 @@ objc/imap/MCOIMAPCapabilityOperation.h
 objc/imap/MCOIMAPQuotaOperation.h
 objc/imap/MCOIMAPSearchExpression.h
 objc/imap/MCOIMAPMessageRenderingOperation.h
+objc/imap/MCOIMAPCustomCommandOperation.h
 objc/rfc822/MCORFC822.h
 objc/rfc822/MCOAttachment.h
 objc/rfc822/MCOMessageBuilder.h
@@ -197,6 +202,7 @@ objc/nntp/MCONNTPFetchAllArticlesOperation.h
 objc/nntp/MCONNTPListNewsgroupsOperation.h
 objc/nntp/MCONNTPFetchOverviewOperation.h
 objc/nntp/MCONNTPFetchServerTimeOperation.h
+objc/nntp/MCONNTPPostOperation.h
 objc/nntp/MCONNTPGroupInfo.h
 objc/provider/MCOProvider.h
 objc/provider/MCONetService.h

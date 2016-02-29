@@ -53,9 +53,12 @@ namespace mailcore {
         virtual IndexSet * fetchAllArticles(String * groupname, ErrorCode * pError);
                 
         virtual Data * fetchArticle(String *groupName, unsigned int index, NNTPProgressCallback * callback, ErrorCode * pError);
-        virtual Data * fetchArticleByMessageID(String * groupname, String * messageID, ErrorCode * pError);
+        virtual Data * fetchArticleByMessageID(String * messageID, ErrorCode * pError);
         
         virtual time_t fetchServerDate(ErrorCode * pError);
+        
+        virtual void postMessage(Data * messageData, NNTPProgressCallback * callback, ErrorCode * pError);
+        virtual void postMessage(String * messagePath, NNTPProgressCallback * callback, ErrorCode * pError);
         
         virtual void setConnectionLogger(ConnectionLogger * logger);
         virtual ConnectionLogger * connectionLogger();
@@ -70,11 +73,15 @@ namespace mailcore {
         time_t mTimeout;
         
         newsnntp * mNNTP;
+        NNTPProgressCallback * mProgressCallback;
         int mState;
         
         ConnectionLogger * mConnectionLogger;
         
         void init();
+        Data * dataWithFilteredBcc(Data * data);
+        static void body_progress(size_t current, size_t maximum, void * context);
+        void bodyProgress(unsigned int current, unsigned int maximum);
         bool checkCertificate();
         void setup();
         void unsetup();
